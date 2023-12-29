@@ -1,30 +1,48 @@
-# 1- Importer the data set
+
+
+##############################################################################
+######################## Importer d'abord mon dataset ######################## 
+##############################################################################
+
 
 dataframe <- read.csv("shopping_behavior_updated.csv")
-
-# 2- transform the data by deleting numeric data
-
+# Je vais supprimer les colonnes non qualitatives ( quantitatives )
 delete_numeric_columns <- function(df) {
-  numeric_columns <- sapply(df, is.numeric)  # Find numeric columns
-  df <- df[, !numeric_columns]  # Remove numeric columns
+  numeric_columns <- sapply(df, is.numeric)  # trouver les colonnes quantitatives
+  df <- df[, !numeric_columns]  # supprimer ses derniers
   return(df)
 }
 
 dataframe <- delete_numeric_columns(dataframe)
-#View(dataframe)
 
-# Calculate top 8 variables for each facet
+
+####################################################################
+######################## générer le barplot ########################
+####################################################################
+
+
+library(ggplot2)
+library(reshape2)
+library(dplyr)
+
+
+data_melt <- melt(dataframe, id.vars = NULL)
+
+# calculez les tops 8 modalités pour chaque colonne
 top_values <- data_melt %>%
   count(variable, value) %>%
   arrange(variable, desc(n)) %>%
   group_by(variable) %>%
   top_n(8)
 
-# Filter the data to retain only the top 8 variables for each facet
+# filtrer mes données de tels sorte que juste les 8 meilleures modalités vont
+# etre affiches dans chaque facette.
 data_melt_filtered <- data_melt %>%
   semi_join(top_values, by = c("variable", "value"))
 
-# Create the bar plot with the filtered data showing the top 8 variables in each facet
+# créez le barplot avec les données filtrées montrant les 8 meilleures
+# modalités dans chaque facette.
+
 ggplot(data_melt_filtered, aes(x = value, fill = value)) +
   geom_bar() +
   facet_wrap(~variable, scales = "free", ncol = 5) +
@@ -32,140 +50,154 @@ ggplot(data_melt_filtered, aes(x = value, fill = value)) +
   theme(axis.text.x = element_text(angle = 90, hjust = 1),
         legend.position = "none")
 
-# 4- transform the data table to a disjonctive table
+
+#############################################################################
+########## transformer le tableau de données en tableau disjnoctif ########## 
+#############################################################################
+
 
 library(FactoMineR)
 
-# Creating a disjunctive table
+# créer le tableau disjonctif
 table_disjonctive <- tab.disjonctif(dataframe)
 
-# Calculating the total number of responses
+# calculer le nombre total des réponses ( la somme des 0 et de 1 )
 N <- sum(as.matrix(table_disjonctive))
 
-# Calculating counts for each modality of each question
+# calculer k.j
 k_j <- colSums(table_disjonctive)
 
-# Calculating the relative frequencies for each modality of each question
+# calculer f.j
 f_j <- k_j / N
 
-# Calculating counts for each question
+# calculer ki.
 ki_ <- rowSums(table_disjonctive)
 
-# Calculating the relative frequencies for each question
+# calculer fi.
 fi_ <- ki_ / N
 
-# 5- AFCM
+
+#############################################################################
+############################ Effectuer L'4'AFCM #############################
+#############################################################################
+
 
 afcm <- MCA(dataframe,graph = FALSE)
 
-# 6- PLOTTING
+
+#############################################################################
+########################### les différents plots ############################
+#############################################################################
+
+
 library(factoextra)
 
-#eigenvalues
-fviz_eig(afcm, addlabels=TRUE,barfill = "skyblue", ncp = 10, main = "(AFCm) Diagram of the first 10 eigenvalues")
-barplot(afcm$eig[,1], col = "skyblue", main="(AFCm) Scree plot of eigenvalues")
+# le diagramme de 10 premiers valeurs propres 
+# (qui contient le plus grand taux de'information )
+fviz_eig(afcm, addlabels=TRUE,barfill = "skyblue", ncp = 10, main = "Diagramme de 10 premiers valeurs propres")
+barplot(afcm$eig[,1], col = "skyblue", main="Diagramme de tous les valeurs propres")
 
-#modalities 
+# La contibution absolues des variables dans la construction des deux axes fact
 fviz_mca_var(afcm, repel=TRUE, col.var = "contrib")
 
-#individuals
+# La contibution absolues des individus dans la construction des deux axes fact
 fviz_mca_ind(afcm, repel = TRUE, col.ind = "contrib")
-plot.MCA(afcm, title="individuals without labels",col.ind = "skyblue", invisible='var', label='none')
 
-#bi plot
+# Biplot individus variables AFCM
 fviz_mca_biplot(afcm, repel = TRUE, label = 'var')
-groupe <- as.factor(dataframe[, "Gender"])
-fviz_mca_ind(afcm, habillage = groupe, addEllipses = TRUE, repel = TRUE)
 
+#############################################################################
+############ Table de contribution et la signification des axes #############
+#############################################################################
+#############################################################################
 
-# 7- Contribution table and interpret the axes
 
 library(kableExtra)
 
-# Create a table of eigenvalues from the MCA analysis
+# créer la table des valeurs propres
 kbl(afcm$eig) %>%
   kable_styling(bootstrap_options = c("bordered")) %>%
-  footnote(general = "Table of Eigenvalues")
+  footnote(general = "Table des valeurs de propres")
 
-# 1) modalities
+# 1) modalités
 
-# Identification of modalities that contributed the most to the construction of axis 1 and on which side
-dim_one_var_contribs <- (afcm$var$contrib[,1]) / 100  # Contribution of variables to axis 1, divided by 100
-dim_one_most_contrib_vars <- dim_one_var_contribs[dim_one_var_contribs >= f_j]  # Selecting contributions greater than or equal to a certain threshold (f_j)
-dim_one_most_contrib_vars <- sort(dim_one_most_contrib_vars, decreasing = TRUE)  # Sorting the contributions in decreasing order
+# trouver les modalités qui ont contribuer le plus à la construction de l'axe 1 
+# et dans quel sens
+dim_one_var_contribs <- (afcm$var$contrib[,1]) / 100  
+dim_one_most_contrib_vars <- dim_one_var_contribs[dim_one_var_contribs >= f_j]  
+dim_one_most_contrib_vars <- sort(dim_one_most_contrib_vars, decreasing = TRUE)
 
-# Initializing empty lists and retrieving variable coordinates
 dim_one_pos_vars <- vector(mode="list")
 dim_one_neg_vars <- vector(mode="list")
-dim_one_vars_coords <- afcm$var$coord[,1]  # Retrieving coordinates of variables on the first axis
+dim_one_vars_coords <- afcm$var$coord[,1]  
 
-# Loop through the significant contributing modalities
 for(catn in names(dim_one_most_contrib_vars)){
-  # Checking if the modality contributes positively to the first axis
   if(dim_one_vars_coords[catn] > 0){
-    dim_one_pos_vars[catn] = dim_one_most_contrib_vars[catn]  # Store positive contributions
+    dim_one_pos_vars[catn] = dim_one_most_contrib_vars[catn]
   } else {
-    dim_one_neg_vars[catn] = dim_one_most_contrib_vars[catn]  # Store negative contributions
+    dim_one_neg_vars[catn] = dim_one_most_contrib_vars[catn]
   }
 }
 
-# Identification of modalities that contributed the most to the construction of axis 2 and on which side
-dim_two_var_contribs <- (afcm$var$contrib[,2]) / 100  # Contribution of variables to axis 2, divided by 100
-dim_two_most_contrib_vars <- dim_two_var_contribs[dim_two_var_contribs >= f_j]  # Selecting contributions greater than or equal to a certain threshold (f_j)
-dim_two_most_contrib_vars <- sort(dim_two_most_contrib_vars, decreasing = TRUE)  # Sorting the contributions in decreasing order
+# trouver les modalités qui ont contribuer le plus à la construction de l'axe 2 
+# et dans quel sens
+dim_two_var_contribs <- (afcm$var$contrib[,2]) / 100 
+dim_two_most_contrib_vars <- dim_two_var_contribs[dim_two_var_contribs >= f_j]  
+dim_two_most_contrib_vars <- sort(dim_two_most_contrib_vars, decreasing = TRUE) 
 
-dim_two_pos_vars <- vector(mode = "list")  # Initializing a list for variables contributing positively to axis 2
-dim_two_neg_vars <- vector(mode = "list")  # Initializing a list for variables contributing negatively to axis 2
-dim_two_vars_coords <- afcm$var$coord[,2]  # Extracting coordinates of variables on axis 2
+dim_two_pos_vars <- vector(mode = "list")  
+dim_two_neg_vars <- vector(mode = "list")  
+dim_two_vars_coords <- afcm$var$coord[,2]  
 
 for (catn in names(dim_two_most_contrib_vars)) {
   if (dim_two_vars_coords[catn] > 0) {
-    dim_two_pos_vars[catn] = dim_two_most_contrib_vars[catn]  # Storing positive contributors to axis 2
+    dim_two_pos_vars[catn] = dim_two_most_contrib_vars[catn] 
   } else {
-    dim_two_neg_vars[catn] = dim_two_most_contrib_vars[catn]  # Storing negative contributors to axis 2
+    dim_two_neg_vars[catn] = dim_two_most_contrib_vars[catn]
   }
 }
 
 # 2) individus
 
-# Identification of individuals who contributed the most to the construction of axis 1 and on which side
-dim_one_ind_contribs <- (afcm$ind$contrib[,1]) / 100  # Contribution of individuals to axis 1, divided by 100
-dim_one_most_contrib_inds <- dim_one_ind_contribs[dim_one_ind_contribs >= fi_]  # Selecting contributions greater than or equal to a certain threshold (fi_)
-dim_one_most_contrib_inds <- sort(dim_one_most_contrib_inds, decreasing = TRUE)  # Sorting the contributions in decreasing order
+# trouver les individus qui ont contribuer le plus à la construction de l'axe 1 
+# et dans quel sens
+dim_one_ind_contribs <- (afcm$ind$contrib[,1]) / 100  
+dim_one_most_contrib_inds <- dim_one_ind_contribs[dim_one_ind_contribs >= fi_]  
+dim_one_most_contrib_inds <- sort(dim_one_most_contrib_inds, decreasing = TRUE) 
 
-dim_one_pos_inds <- vector(mode = "list")  # Initializing a list for individuals contributing positively to axis 1
-dim_one_neg_inds <- vector(mode = "list")  # Initializing a list for individuals contributing negatively to axis 1
-dim_one_inds_coords <- afcm$ind$coord[,1]  # Extracting coordinates of individuals on axis 1
+dim_one_pos_inds <- vector(mode = "list")
+dim_one_neg_inds <- vector(mode = "list")
+dim_one_inds_coords <- afcm$ind$coord[,1]
 
 for (catn in names(dim_one_most_contrib_inds)) {
   if (dim_one_inds_coords[catn] > 0) {
-    dim_one_pos_inds[catn] = dim_one_most_contrib_inds[catn]  # Storing positive contributors to axis 1
+    dim_one_pos_inds[catn] = dim_one_most_contrib_inds[catn]  
   } else {
-    dim_one_neg_inds[catn] = dim_one_most_contrib_inds[catn]  # Storing negative contributors to axis 1
+    dim_one_neg_inds[catn] = dim_one_most_contrib_inds[catn]  
   }
 }
 
-# Identification of individuals who contributed the most to the construction of axis 2 and on which side
-dim_two_ind_contribs <- (afcm$ind$contrib[,2]) / 100  # Contribution of individuals to axis 2, divided by 100
-dim_two_most_contrib_inds <- dim_two_ind_contribs[dim_two_ind_contribs >= fi_]  # Selecting contributions greater than or equal to a certain threshold (fi_)
-dim_two_most_contrib_inds <- sort(dim_two_most_contrib_inds, decreasing = TRUE)  # Sorting the contributions in decreasing order
+# trouver les individus qui ont contribuer le plus à la construction de l'axe 2 
+# et dans quel sens
+dim_two_ind_contribs <- (afcm$ind$contrib[,2]) / 100 
+dim_two_most_contrib_inds <- dim_two_ind_contribs[dim_two_ind_contribs >= fi_]  
+dim_two_most_contrib_inds <- sort(dim_two_most_contrib_inds, decreasing = TRUE) 
 
-dim_two_pos_inds <- vector(mode = "list")  # Initializing a list for individuals contributing positively to axis 2
-dim_two_neg_inds <- vector(mode = "list")  # Initializing a list for individuals contributing negatively to axis 2
-dim_two_inds_coords <- afcm$ind$coord[,2]  # Extracting coordinates of individuals on axis 2
+dim_two_pos_inds <- vector(mode = "list")  
+dim_two_neg_inds <- vector(mode = "list") 
+dim_two_inds_coords <- afcm$ind$coord[,2]  
 
 for (catn in names(dim_two_most_contrib_inds)) {
   if (dim_two_inds_coords[catn] > 0) {
-    dim_two_pos_inds[catn] = dim_two_most_contrib_inds[catn]  # Storing positive contributors to axis 2
+    dim_two_pos_inds[catn] = dim_two_most_contrib_inds[catn] 
   } else {
-    dim_two_neg_inds[catn] = dim_two_most_contrib_inds[catn]  # Storing negative contributors to axis 2
+    dim_two_neg_inds[catn] = dim_two_most_contrib_inds[catn]
   }
 }
 
 
 library(kableExtra)
 
-# Creating a data frame for Axis 1 analysis table
 ddd <- data.frame(
   PL.POS = toString(names(dim_one_pos_inds)),
   PL.NEG = toString(names(dim_one_neg_inds)),
@@ -173,12 +205,11 @@ ddd <- data.frame(
   PC.NEG = toString(names(dim_one_neg_vars))
 )
 
-# Generating a table for Axis 1 analysis
+# générer la table d'analyse pour l'axe 1
 kbl(ddd) %>%
   kable_styling(bootstrap_options = c("bordered")) %>%
-  add_header_above(c("Profiles Lines (PL)" = 2, "Profiles Columns (PC)" = 2)) %>%
-  footnote(general = "Table of analysis for Axis 1")
-
+  add_header_above(c("(PL)" = 2, "(PC)" = 2)) %>%
+  footnote(general = "Table d'analyse pour l'axe 1")
 
 ddd <- data.frame(
   PL.POS = toString(names(dim_two_pos_inds)),
@@ -187,12 +218,24 @@ ddd <- data.frame(
   PC.NEG = toString(names(dim_two_neg_vars))
 )
 
+# générer la table d'analyse pour l'axe 2
 kbl(ddd) %>%
   kable_styling(bootstrap_options = c("bordered")) %>%
-  add_header_above(c("Profiles Lines (PL)" = 2, "Profiles Columns (PC)" = 2)) %>%
-  footnote(general = "Table of analysis for Axis 2")
+  add_header_above(c("(PL)" = 2, "(PC)" = 2)) %>%
+  footnote(general = "Table d'analyse pour l'axe 2")
 
 
+#############################################################################
+############ Questions les mieux représentées par AFCM  #####################
+#############################################################################
+#############################################################################
+
+vars_cos2 <- afcm$var$cos2
+first_plan_cos2 <- vars_cos2[,1] + vars_cos2[,2]
+first_plan_cos2 <- sort(first_plan_cos2, decreasing=TRUE)
+kbl(first_plan_cos2) %>%
+  kable_styling(bootstrap_options = c("bordered")) %>%
+  footnote(general="Conributions relatives des modalité")
 
 
 
