@@ -5,7 +5,7 @@
 ##############################################################################
 
 
-dataframe <- read.csv("shopping_behavior_updated.csv")
+dataframe <- read.csv("../shopping_behavior_updated.csv")
 # Je vais supprimer les colonnes non qualitatives ( quantitatives )
 delete_numeric_columns <- function(df) {
   numeric_columns <- sapply(df, is.numeric)  # trouver les colonnes quantitatives
@@ -78,7 +78,7 @@ fi_ <- ki_ / N
 
 
 #############################################################################
-############################ Effectuer L'4'AFCM #############################
+############################ Effectuer L'AFCM ################################
 #############################################################################
 
 
@@ -236,8 +236,3 @@ first_plan_cos2 <- sort(first_plan_cos2, decreasing=TRUE)
 kbl(first_plan_cos2) %>%
   kable_styling(bootstrap_options = c("bordered")) %>%
   footnote(general="Conributions relatives des modalité")
-
-
-
-
-
